@@ -1,66 +1,116 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Example CouchApp</title>
+    <title>Simple address book</title>
     <link rel="stylesheet" href="style/main.css" type="text/css">
+<span style="white-space: pre;"> </span><script src="/_utils/script/json2.js"></script>
+<span style="white-space: pre;"> </span><script src="/_utils/script/jquery.js?1.3.1"></script>
+<span style="white-space: pre;"> </span><script src="/_utils/script/jquery.couch.js?0.9.0"></script>
+<span style="white-space: pre;"> </span>
+<script type="text/javascript">
+  $db = $.couch.db("addressbook");
+
+  function refreshAddressbook() {
+   $("div#addressbook").empty();
+   $db.view("addressbook/phonenumbers", {
+    success: function(data) {
+     for (i in data.rows) {
+      id = data.rows[i].id;
+      name = data.rows[i].key;
+      phonenumber = data.rows[i].value;
+      html = '<div class="address">' +
+       '<span class="name">' + name + '</span> ' +
+       '<span class="phonenumber">' + phonenumber + '</span> ' +
+       '<a href="#" id="'+id+'" class="edit">edit</a> '+
+       '<a href="#" id="'+id+'" class="delete">delete</a> '+
+       '</div>';
+      $("div#addressbook").append(html);
+     }
+   }});
+  }
+function addUpdateForm(target, existingDoc) {  
+      html = '<form name="update" id="update" action=""><table>' +  
+        '<tr><td>Name</td><td>Number</td></tr>' +  
+        '<tr>' +  
+          '<td><input type="text" name="name" id="name" value="' +  
+    (existingDoc ? existingDoc.name : "") + '"/></td>' +  
+          '<td><input type="text" name="mobile" id="mobile"/ value="' +   
+    (existingDoc ? existingDoc.mobile : "") + '"></td>' +   
+          '<td><input type="submit" name="submit" class="update" value="' +   
+    (existingDoc?"Update":"Add") + '"/></td>' +   
+          '<td><input type="submit" name="cancel" class="cancel" value="Cancel"/></td>' +   
+        '</tr>' +  
+      '</table></form>';  
+      target.append(html);  
+      target.children("form#update").data("existingDoc", existingDoc);  
+    }
+ 
+  $(document).ready(function() { 
+   refreshAddressbook();
+    $("div#addressbook").click(function(event) {  
+      var $tgt = $(event.target);  
+      if ($tgt.is('a')) {  
+        id = $tgt.attr("id");
+         if ($tgt.hasClass("edit")) {  
+            $("button#add").show();  
+            $("form#update").remove();  
+            $db.openDoc(id, { success: function(doc) {  
+            addUpdateForm($tgt.parent(), doc);  
+         }}); 
+         }  
+         if ($tgt.hasClass("delete")) {  
+          html = '<span class="deleteconfirm">Sure? <a href="#" id="'+id+'" class="dodelete">Yes</a> <a href="#" class="canceldelete">No</a></span>';  
+          $tgt.parent().append(html);  
+         }  
+         if ($tgt.hasClass("dodelete")) {  
+          $db.openDoc(id, { success: function(doc) {  
+           $db.removeDoc(doc, { success: function() {  
+            $tgt.parents("div.address").remove();       
+           }})  
+          }});        
+         }  
+         if ($tgt.hasClass("canceldelete")) {  
+          $tgt.parents("span.deleteconfirm").remove();  
+         }  
+        }  
+    });
+ 
+  $("button#add").click(function(event) {     
+    $("form#update").remove();  
+    $("button#add").hide();  
+    addUpdateForm($("div#add"));  
+    });
+  $("input.cancel").live('click', function(event) {  
+        $("button#add").show();  
+        $("form#update").remove();  
+        return false;  
+        }); 
+
+   $("input.update").live('click', function(event) {
+    var $tgt = $(event.target);
+    var $form = $tgt.parents("form#update");
+    var $doc = $form.data('existingDoc') || {};
+    $doc.type = "address";
+    $doc.name = $form.find("input#name").val();
+    $doc.mobile = $form.find("input#mobile").val();
+    $db.saveDoc(
+     $doc,
+     {success: function() {
+      $("button#add").show();
+      $("form#update").remove();
+      refreshAddressbook();
+    }});
+    return false;
+   });
+
+  });
+
+</script>
   </head>
   <body>
-    <div id="account"></div>
-
-    <h1>Example CouchApp</h1>
-
-    <div id="profile">
-    </div>
-    <div id="content"></div>
-
-    <div id="sidebar">
-      <p>Edit welcome message.</p>
-      <p>Ideas: You could easily turn this into a photo sharing app, 
-          or a grocery list, or a chat room. <a href="https://github.com/couchapp/example">Code for this app is on Github.</a></p>
-    </div>
+    <h1>Simple address book</h1>
+<span style="white-space: pre;"> </span><div id="add"><button type="button" id="add">Add</button></div>
+    <div id="addressbook"></div>
   </body>
-  <script src="/_utils/script/sha1.js"></script>
-  <script src="/_utils/script/json2.js"></script>
-  <script src="/_utils/script/jquery.js"></script>
-  <script src="/_utils/script/jquery.couch.js"></script>
-  <script src="vendor/couchapp/jquery.couchLogin.js"></script>
-  <script src="vendor/couchapp/jquery.couchProfile.js"></script>
-  <script src="vendor/couchapp/md5.js"></script>
-  <script src="vendor/couchapp/jquery.mustache.js"></script>
-
-<!-- templates used by app.js -->
-  <script id="new-message" type="text/x-mustache" charset="utf-8">
-      <div class="avatar">
-        {{#gravatar_url}}<img src="{{gravatar_url}}"/>{{/gravatar_url}}
-        <div class="name">
-          {{name}}
-        </div>
-      </div>
-      <form id="create-message">
-        <label>New message from {{nickname}}: <input type="text" name="message" size=60 value=""></label>
-      </form>
-      <div style="clear:left;"></div>
-  </script>
-
-  <script id="recent-messages" type="text/x-mustache" charset="utf-8">
-        <h3>Recent Messages</h3>
-        <ul id="items">
-          {{#items}}
-            <li>
-              <div class="avatar">
-                {{#gravatar_url}}<img src="{{gravatar_url}}" alt="{{name}}"/>{{/gravatar_url}}
-                <div class="name">
-                  {{nickname}}
-                </div>
-              </div>
-              <p>{{message}}</p>
-              <div style="clear:left;"></div>
-            </li>
-          {{/items}}
-        </ul>
-        <p><em>Protip:</em> If you setup continuous replication between this database and a remote one, this list will reflect remote changes in near real-time.</p>
-        <p>This would be a good place to add pagination.</p>
-  </script>
-  <script src="script/app.js"></script>
-
 </html>
+
